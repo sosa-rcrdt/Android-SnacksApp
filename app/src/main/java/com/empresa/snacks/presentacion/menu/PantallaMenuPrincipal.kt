@@ -46,8 +46,6 @@ fun PantallaMenuPrincipal(
     ) {
         LogoPrincipal()
 
-        Spacer(modifier = Modifier.height(12.dp))
-
         Text(
             text = "Sistema de ventas para elotes y snacks",
             style = MaterialTheme.typography.bodyLarge,
