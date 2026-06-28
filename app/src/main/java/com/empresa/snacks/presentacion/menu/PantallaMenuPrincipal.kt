@@ -35,7 +35,8 @@ import com.empresa.snacks.ui.theme.SnacksAppTheme
 
 @Composable
 fun PantallaMenuPrincipal(
-    modificador: Modifier = Modifier
+    modificador: Modifier = Modifier,
+    alPresionarCalcularCompra: () -> Unit = {}
 ) {
     Column(
         modifier = modificador
@@ -75,9 +76,7 @@ fun PantallaMenuPrincipal(
                 Spacer(modifier = Modifier.height(16.dp))
 
                 Button(
-                    onClick = {
-                        // Después abriremos la pantalla para calcular una compra.
-                    },
+                    onClick = alPresionarCalcularCompra,
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(50.dp),
                     colors = ButtonDefaults.buttonColors(
