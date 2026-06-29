@@ -21,6 +21,8 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -45,6 +47,20 @@ fun PantallaCalcularCompra(
     alRegresar: () -> Unit = {},
     productos: List<Producto> = CatalogoProductosLocal.obtenerProductosActivos()
 ) {
+    // Guarda las cantidades seleccionadas usando el id del producto como llave.
+    val cantidadesPorProducto = remember {
+        mutableStateMapOf<Int, Int>()
+    }
+
+    val cantidadTotalProductos = productos.sumOf { producto ->
+        cantidadesPorProducto[producto.id] ?: 0
+    }
+
+    val totalParcialCentavos = productos.sumOf { producto ->
+        val cantidad = cantidadesPorProducto[producto.id] ?: 0
+        producto.precioCentavos * cantidad
+    }
+
     Column(
         modifier = modificador
             .fillMaxSize()
@@ -58,12 +74,36 @@ fun PantallaCalcularCompra(
         Spacer(modifier = Modifier.height(16.dp))
 
         SeccionCatalogoProductos(
-            productos = productos
+            productos = productos,
+            cantidadesPorProducto = cantidadesPorProducto,
+            alAumentarCantidad = { producto ->
+                val cantidadActual = cantidadesPorProducto[producto.id] ?: 0
+                cantidadesPorProducto[producto.id] = cantidadActual + 1
+            },
+            alDisminuirCantidad = { producto ->
+                val cantidadActual = cantidadesPorProducto[producto.id] ?: 0
+
+                if (cantidadActual > 1) {
+                    cantidadesPorProducto[producto.id] = cantidadActual - 1
+                } else {
+                    cantidadesPorProducto.remove(producto.id)
+                }
+            }
         )
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        BotonVerResumenCompra()
+        ResumenParcialCompra(
+            cantidadTotalProductos = cantidadTotalProductos,
+            totalParcialCentavos = totalParcialCentavos
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        BotonVerResumenCompra(
+            habilitado = cantidadTotalProductos > 0,
+            cantidadTotalProductos = cantidadTotalProductos
+        )
     }
 }
 
@@ -109,7 +149,10 @@ private fun EncabezadoCompra(
 
 @Composable
 private fun SeccionCatalogoProductos(
-    productos: List<Producto>
+    productos: List<Producto>,
+    cantidadesPorProducto: Map<Int, Int>,
+    alAumentarCantidad: (Producto) -> Unit,
+    alDisminuirCantidad: (Producto) -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -141,7 +184,14 @@ private fun SeccionCatalogoProductos(
 
             productos.forEach { producto ->
                 ProductoCompra(
-                    producto = producto
+                    producto = producto,
+                    cantidad = cantidadesPorProducto[producto.id] ?: 0,
+                    alAumentarCantidad = {
+                        alAumentarCantidad(producto)
+                    },
+                    alDisminuirCantidad = {
+                        alDisminuirCantidad(producto)
+                    }
                 )
 
                 Spacer(modifier = Modifier.height(10.dp))
@@ -152,7 +202,10 @@ private fun SeccionCatalogoProductos(
 
 @Composable
 private fun ProductoCompra(
-    producto: Producto
+    producto: Producto,
+    cantidad: Int,
+    alAumentarCantidad: () -> Unit,
+    alDisminuirCantidad: () -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -204,11 +257,12 @@ private fun ProductoCompra(
             ) {
                 BotonCantidad(
                     texto = "-",
-                    habilitado = false
+                    habilitado = cantidad > 0,
+                    alPresionar = alDisminuirCantidad
                 )
 
                 Text(
-                    text = "0",
+                    text = cantidad.toString(),
                     modifier = Modifier.padding(horizontal = 10.dp),
                     fontWeight = FontWeight.Bold,
                     color = ColorVerdeOscuro
@@ -216,7 +270,8 @@ private fun ProductoCompra(
 
                 BotonCantidad(
                     texto = "+",
-                    habilitado = false
+                    habilitado = true,
+                    alPresionar = alAumentarCantidad
                 )
             }
         }
@@ -250,12 +305,11 @@ private fun ImagenProductoGenerica() {
 @Composable
 private fun BotonCantidad(
     texto: String,
-    habilitado: Boolean
+    habilitado: Boolean,
+    alPresionar: () -> Unit
 ) {
     Button(
-        onClick = {
-            // Después aquí aumentaremos o reduciremos la cantidad del producto.
-        },
+        onClick = alPresionar,
         enabled = habilitado,
         modifier = Modifier.size(36.dp),
         shape = RoundedCornerShape(12.dp),
@@ -275,12 +329,85 @@ private fun BotonCantidad(
 }
 
 @Composable
-private fun BotonVerResumenCompra() {
+private fun ResumenParcialCompra(
+    cantidadTotalProductos: Int,
+    totalParcialCentavos: Long
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(22.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = Color.White
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp)
+        ) {
+            Text(
+                text = "Carrito actual",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = ColorVerdeOscuro
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            FilaResumenParcial(
+                etiqueta = "Productos agregados",
+                valor = cantidadTotalProductos.toString()
+            )
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            FilaResumenParcial(
+                etiqueta = "Total parcial",
+                valor = formatearCentavosComoPesos(totalParcialCentavos)
+            )
+        }
+    }
+}
+
+@Composable
+private fun FilaResumenParcial(
+    etiqueta: String,
+    valor: String
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(
+            text = etiqueta,
+            color = ColorVerdePrincipal
+        )
+
+        Spacer(modifier = Modifier.width(16.dp))
+
+        Text(
+            text = valor,
+            fontWeight = FontWeight.Bold,
+            color = ColorVerdeOscuro
+        )
+    }
+}
+
+@Composable
+private fun BotonVerResumenCompra(
+    habilitado: Boolean,
+    cantidadTotalProductos: Int
+) {
+    val textoBoton = if (cantidadTotalProductos > 0) {
+        "Ver resumen de compra ($cantidadTotalProductos)"
+    } else {
+        "Ver resumen de compra"
+    }
+
     Button(
         onClick = {
-            // Después abriremos la pantalla de resumen de compra.
+            // En el siguiente commit abriremos la pantalla de resumen de compra.
         },
-        enabled = false,
+        enabled = habilitado,
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(50.dp),
         colors = ButtonDefaults.buttonColors(
@@ -291,7 +418,7 @@ private fun BotonVerResumenCompra() {
         )
     ) {
         Text(
-            text = "Ver resumen de compra",
+            text = textoBoton,
             fontWeight = FontWeight.Bold
         )
     }
