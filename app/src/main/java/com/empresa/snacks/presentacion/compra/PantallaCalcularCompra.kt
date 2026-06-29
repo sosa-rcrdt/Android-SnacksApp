@@ -38,7 +38,9 @@ import com.empresa.snacks.comun.estilo.ColorVerdeOscuro
 import com.empresa.snacks.comun.estilo.ColorVerdePrincipal
 import com.empresa.snacks.comun.formato.formatearCentavosComoPesos
 import com.empresa.snacks.datos.local.CatalogoProductosLocal
+import com.empresa.snacks.dominio.caso_uso.CalcularResumenCarrito
 import com.empresa.snacks.dominio.modelo.Producto
+import com.empresa.snacks.dominio.modelo.ResumenCarrito
 import com.empresa.snacks.ui.theme.SnacksAppTheme
 
 @Composable
@@ -52,14 +54,11 @@ fun PantallaCalcularCompra(
         mutableStateMapOf<Int, Int>()
     }
 
-    val cantidadTotalProductos = productos.sumOf { producto ->
-        cantidadesPorProducto[producto.id] ?: 0
-    }
-
-    val totalParcialCentavos = productos.sumOf { producto ->
-        val cantidad = cantidadesPorProducto[producto.id] ?: 0
-        producto.precioCentavos * cantidad
-    }
+    // Calcula el resumen actual del carrito a partir de productos y cantidades.
+    val resumenCarrito = CalcularResumenCarrito.ejecutar(
+        productos = productos,
+        cantidadesPorProducto = cantidadesPorProducto
+    )
 
     Column(
         modifier = modificador
@@ -94,15 +93,13 @@ fun PantallaCalcularCompra(
         Spacer(modifier = Modifier.height(16.dp))
 
         ResumenParcialCompra(
-            cantidadTotalProductos = cantidadTotalProductos,
-            totalParcialCentavos = totalParcialCentavos
+            resumenCarrito = resumenCarrito
         )
 
         Spacer(modifier = Modifier.height(16.dp))
 
         BotonVerResumenCompra(
-            habilitado = cantidadTotalProductos > 0,
-            cantidadTotalProductos = cantidadTotalProductos
+            resumenCarrito = resumenCarrito
         )
     }
 }
@@ -330,8 +327,7 @@ private fun BotonCantidad(
 
 @Composable
 private fun ResumenParcialCompra(
-    cantidadTotalProductos: Int,
-    totalParcialCentavos: Long
+    resumenCarrito: ResumenCarrito
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -355,14 +351,14 @@ private fun ResumenParcialCompra(
 
             FilaResumenParcial(
                 etiqueta = "Productos agregados",
-                valor = cantidadTotalProductos.toString()
+                valor = resumenCarrito.cantidadTotalProductos.toString()
             )
 
             Spacer(modifier = Modifier.height(6.dp))
 
             FilaResumenParcial(
                 etiqueta = "Total parcial",
-                valor = formatearCentavosComoPesos(totalParcialCentavos)
+                valor = formatearCentavosComoPesos(resumenCarrito.totalCentavos)
             )
         }
     }
@@ -394,11 +390,10 @@ private fun FilaResumenParcial(
 
 @Composable
 private fun BotonVerResumenCompra(
-    habilitado: Boolean,
-    cantidadTotalProductos: Int
+    resumenCarrito: ResumenCarrito
 ) {
-    val textoBoton = if (cantidadTotalProductos > 0) {
-        "Ver resumen de compra ($cantidadTotalProductos)"
+    val textoBoton = if (!resumenCarrito.estaVacio) {
+        "Ver resumen de compra (${resumenCarrito.cantidadTotalProductos})"
     } else {
         "Ver resumen de compra"
     }
@@ -407,7 +402,7 @@ private fun BotonVerResumenCompra(
         onClick = {
             // En el siguiente commit abriremos la pantalla de resumen de compra.
         },
-        enabled = habilitado,
+        enabled = !resumenCarrito.estaVacio,
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(50.dp),
         colors = ButtonDefaults.buttonColors(
