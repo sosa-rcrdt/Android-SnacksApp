@@ -21,8 +21,6 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.mutableStateMapOf
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -47,14 +45,12 @@ import com.empresa.snacks.ui.theme.SnacksAppTheme
 fun PantallaCalcularCompra(
     modificador: Modifier = Modifier,
     alRegresar: () -> Unit = {},
-    productos: List<Producto> = CatalogoProductosLocal.obtenerProductosActivos()
+    productos: List<Producto> = CatalogoProductosLocal.obtenerProductosActivos(),
+    cantidadesPorProducto: Map<Int, Int> = emptyMap(),
+    alAumentarCantidad: (Producto) -> Unit = {},
+    alDisminuirCantidad: (Producto) -> Unit = {},
+    alVerResumenCompra: () -> Unit = {}
 ) {
-    // Guarda las cantidades seleccionadas usando el id del producto como llave.
-    val cantidadesPorProducto = remember {
-        mutableStateMapOf<Int, Int>()
-    }
-
-    // Calcula el resumen actual del carrito a partir de productos y cantidades.
     val resumenCarrito = CalcularResumenCarrito.ejecutar(
         productos = productos,
         cantidadesPorProducto = cantidadesPorProducto
@@ -75,19 +71,8 @@ fun PantallaCalcularCompra(
         SeccionCatalogoProductos(
             productos = productos,
             cantidadesPorProducto = cantidadesPorProducto,
-            alAumentarCantidad = { producto ->
-                val cantidadActual = cantidadesPorProducto[producto.id] ?: 0
-                cantidadesPorProducto[producto.id] = cantidadActual + 1
-            },
-            alDisminuirCantidad = { producto ->
-                val cantidadActual = cantidadesPorProducto[producto.id] ?: 0
-
-                if (cantidadActual > 1) {
-                    cantidadesPorProducto[producto.id] = cantidadActual - 1
-                } else {
-                    cantidadesPorProducto.remove(producto.id)
-                }
-            }
+            alAumentarCantidad = alAumentarCantidad,
+            alDisminuirCantidad = alDisminuirCantidad
         )
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -99,7 +84,8 @@ fun PantallaCalcularCompra(
         Spacer(modifier = Modifier.height(16.dp))
 
         BotonVerResumenCompra(
-            resumenCarrito = resumenCarrito
+            resumenCarrito = resumenCarrito,
+            alVerResumenCompra = alVerResumenCompra
         )
     }
 }
@@ -390,7 +376,8 @@ private fun FilaResumenParcial(
 
 @Composable
 private fun BotonVerResumenCompra(
-    resumenCarrito: ResumenCarrito
+    resumenCarrito: ResumenCarrito,
+    alVerResumenCompra: () -> Unit
 ) {
     val textoBoton = if (!resumenCarrito.estaVacio) {
         "Ver resumen de compra (${resumenCarrito.cantidadTotalProductos})"
@@ -399,9 +386,7 @@ private fun BotonVerResumenCompra(
     }
 
     Button(
-        onClick = {
-            // En el siguiente commit abriremos la pantalla de resumen de compra.
-        },
+        onClick = alVerResumenCompra,
         enabled = !resumenCarrito.estaVacio,
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(50.dp),
