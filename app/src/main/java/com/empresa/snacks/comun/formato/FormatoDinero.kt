@@ -18,14 +18,16 @@ fun convertirTextoPesosACentavos(texto: String): Long? {
         return 0L
     }
 
-    val formatoValido = Regex("^\\d*(\\.\\d{0,2})?$")
+    // Acepta cantidades como: 50, 50.5, 50.50, 1000
+    // Rechaza letras, negativos y más de dos decimales.
+    val formatoValido = Regex("^\\d+(\\.\\d{0,2})?$")
 
     if (!formatoValido.matches(textoLimpio)) {
         return null
     }
 
     val partes = textoLimpio.split(".")
-    val pesosTexto = partes.getOrNull(0).orEmpty().ifBlank { "0" }
+    val pesosTexto = partes.getOrNull(0).orEmpty()
     val centavosTexto = partes.getOrNull(1).orEmpty()
 
     val pesos = pesosTexto.toLongOrNull() ?: return null

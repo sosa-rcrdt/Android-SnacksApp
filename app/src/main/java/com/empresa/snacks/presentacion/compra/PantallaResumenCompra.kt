@@ -32,9 +32,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.empresa.snacks.comun.estilo.ColorAdvertencia
 import com.empresa.snacks.comun.estilo.ColorAmarilloMaiz
 import com.empresa.snacks.comun.estilo.ColorBotonDeshabilitado
+import com.empresa.snacks.comun.estilo.ColorError
+import com.empresa.snacks.comun.estilo.ColorExito
+import com.empresa.snacks.comun.estilo.ColorFondoAdvertencia
 import com.empresa.snacks.comun.estilo.ColorFondoAplicacion
+import com.empresa.snacks.comun.estilo.ColorFondoError
+import com.empresa.snacks.comun.estilo.ColorFondoExito
 import com.empresa.snacks.comun.estilo.ColorTarjetaMenu
 import com.empresa.snacks.comun.estilo.ColorTextoDeshabilitado
 import com.empresa.snacks.comun.estilo.ColorVerdeOscuro
@@ -90,28 +96,16 @@ fun PantallaResumenCompra(
             alCambiarDineroRecibido = { nuevoValor ->
                 textoDineroRecibido = nuevoValor
             },
+            resumenCarrito = resumenCarrito,
             resumenCobro = resumenCobro
         )
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        Button(
-            onClick = alConfirmarVenta,
-            enabled = resumenCobro.pagoSuficiente,
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(50.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = ColorAmarilloMaiz,
-                contentColor = ColorVerdeOscuro,
-                disabledContainerColor = ColorBotonDeshabilitado,
-                disabledContentColor = ColorTextoDeshabilitado
-            )
-        ) {
-            Text(
-                text = "Confirmar venta",
-                fontWeight = FontWeight.Bold
-            )
-        }
+        BotonConfirmarVenta(
+            habilitado = resumenCobro.pagoSuficiente && !resumenCarrito.estaVacio,
+            alConfirmarVenta = alConfirmarVenta
+        )
     }
 }
 
@@ -180,9 +174,10 @@ private fun SeccionDetalleResumen(
             Spacer(modifier = Modifier.height(12.dp))
 
             if (resumenCarrito.estaVacio) {
-                Text(
-                    text = "No hay productos seleccionados.",
-                    color = ColorVerdePrincipal
+                TarjetaMensajeValidacion(
+                    titulo = "Carrito vacío",
+                    mensaje = "Regresa a productos y agrega al menos un producto para poder cobrar.",
+                    tipo = TipoMensajeValidacion.ADVERTENCIA
                 )
             } else {
                 resumenCarrito.detalles.forEach { detalle ->
@@ -262,6 +257,7 @@ private fun FilaDetalleProducto(
 private fun SeccionCobro(
     textoDineroRecibido: String,
     alCambiarDineroRecibido: (String) -> Unit,
+    resumenCarrito: ResumenCarrito,
     resumenCobro: ResumenCobro
 ) {
     Card(
@@ -303,8 +299,9 @@ private fun SeccionCobro(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            MensajeCobro(
+            MensajeValidacionCobro(
                 textoDineroRecibido = textoDineroRecibido,
+                resumenCarrito = resumenCarrito,
                 resumenCobro = resumenCobro
             )
 
@@ -327,31 +324,144 @@ private fun SeccionCobro(
 }
 
 @Composable
-private fun MensajeCobro(
+private fun MensajeValidacionCobro(
     textoDineroRecibido: String,
+    resumenCarrito: ResumenCarrito,
     resumenCobro: ResumenCobro
 ) {
-    val mensaje = when {
-        textoDineroRecibido.isBlank() -> "Ingresa la cantidad recibida para calcular el cambio."
+    val mensaje = obtenerMensajeValidacionCobro(
+        textoDineroRecibido = textoDineroRecibido,
+        resumenCarrito = resumenCarrito,
+        resumenCobro = resumenCobro
+    )
 
-        !resumenCobro.dineroRecibidoValido -> "Ingresa una cantidad válida."
+    TarjetaMensajeValidacion(
+        titulo = mensaje.titulo,
+        mensaje = mensaje.descripcion,
+        tipo = mensaje.tipo
+    )
+}
 
-        resumenCobro.pagoSuficiente -> "Pago suficiente. Puedes confirmar la venta."
+private fun obtenerMensajeValidacionCobro(
+    textoDineroRecibido: String,
+    resumenCarrito: ResumenCarrito,
+    resumenCobro: ResumenCobro
+): MensajeValidacion {
+    return when {
+        resumenCarrito.estaVacio -> {
+            MensajeValidacion(
+                titulo = "No hay productos",
+                descripcion = "Agrega productos antes de confirmar una venta.",
+                tipo = TipoMensajeValidacion.ADVERTENCIA
+            )
+        }
 
-        else -> "Faltan ${
-            formatearCentavosComoPesos(resumenCobro.faltanteCentavos)
-        } para completar el pago."
+        textoDineroRecibido.isBlank() -> {
+            MensajeValidacion(
+                titulo = "Cantidad pendiente",
+                descripcion = "Ingresa el dinero recibido para calcular el cambio.",
+                tipo = TipoMensajeValidacion.ADVERTENCIA
+            )
+        }
+
+        !resumenCobro.dineroRecibidoValido -> {
+            MensajeValidacion(
+                titulo = "Cantidad no válida",
+                descripcion = "Usa solo números y máximo dos decimales. Ejemplo: 150 o 150.50.",
+                tipo = TipoMensajeValidacion.ERROR
+            )
+        }
+
+        !resumenCobro.pagoSuficiente -> {
+            MensajeValidacion(
+                titulo = "Pago insuficiente",
+                descripcion = "Faltan ${
+                    formatearCentavosComoPesos(resumenCobro.faltanteCentavos)
+                } para completar el pago.",
+                tipo = TipoMensajeValidacion.ERROR
+            )
+        }
+
+        resumenCobro.cambioCentavos == 0L -> {
+            MensajeValidacion(
+                titulo = "Pago exacto",
+                descripcion = "El cliente entregó la cantidad exacta. Puedes confirmar la venta.",
+                tipo = TipoMensajeValidacion.EXITO
+            )
+        }
+
+        else -> {
+            MensajeValidacion(
+                titulo = "Pago suficiente",
+                descripcion = "Entrega ${
+                    formatearCentavosComoPesos(resumenCobro.cambioCentavos)
+                } de cambio al cliente.",
+                tipo = TipoMensajeValidacion.EXITO
+            )
+        }
+    }
+}
+
+@Composable
+private fun TarjetaMensajeValidacion(
+    titulo: String,
+    mensaje: String,
+    tipo: TipoMensajeValidacion
+) {
+    val colorFondo = when (tipo) {
+        TipoMensajeValidacion.EXITO -> ColorFondoExito
+        TipoMensajeValidacion.ADVERTENCIA -> ColorFondoAdvertencia
+        TipoMensajeValidacion.ERROR -> ColorFondoError
     }
 
-    Text(
-        text = mensaje,
-        style = MaterialTheme.typography.bodySmall,
-        color = if (resumenCobro.pagoSuficiente) {
-            ColorVerdePrincipal
-        } else {
-            ColorVerdeOscuro
+    val colorTexto = when (tipo) {
+        TipoMensajeValidacion.EXITO -> ColorExito
+        TipoMensajeValidacion.ADVERTENCIA -> ColorAdvertencia
+        TipoMensajeValidacion.ERROR -> ColorError
+    }
+
+    val icono = when (tipo) {
+        TipoMensajeValidacion.EXITO -> "✓"
+        TipoMensajeValidacion.ADVERTENCIA -> "!"
+        TipoMensajeValidacion.ERROR -> "×"
+    }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = colorFondo
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                text = icono,
+                fontWeight = FontWeight.Bold,
+                color = colorTexto
+            )
+
+            Column {
+                Text(
+                    text = titulo,
+                    fontWeight = FontWeight.Bold,
+                    color = colorTexto
+                )
+
+                Spacer(modifier = Modifier.height(2.dp))
+
+                Text(
+                    text = mensaje,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = colorTexto
+                )
+            }
         }
-    )
+    }
 }
 
 @Composable
@@ -377,6 +487,42 @@ private fun FilaResumenCobro(
             color = ColorVerdeOscuro
         )
     }
+}
+
+@Composable
+private fun BotonConfirmarVenta(
+    habilitado: Boolean,
+    alConfirmarVenta: () -> Unit
+) {
+    Button(
+        onClick = alConfirmarVenta,
+        enabled = habilitado,
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(50.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = ColorAmarilloMaiz,
+            contentColor = ColorVerdeOscuro,
+            disabledContainerColor = ColorBotonDeshabilitado,
+            disabledContentColor = ColorTextoDeshabilitado
+        )
+    ) {
+        Text(
+            text = "Confirmar venta",
+            fontWeight = FontWeight.Bold
+        )
+    }
+}
+
+private data class MensajeValidacion(
+    val titulo: String,
+    val descripcion: String,
+    val tipo: TipoMensajeValidacion
+)
+
+private enum class TipoMensajeValidacion {
+    EXITO,
+    ADVERTENCIA,
+    ERROR
 }
 
 @Preview(showBackground = true, backgroundColor = 0xFFFFFBF3)
